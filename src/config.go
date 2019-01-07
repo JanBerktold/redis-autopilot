@@ -29,7 +29,9 @@ func (c *configurationManager) Load(path string) (config *RuntimeConfiguration, 
 	v := viper.New()
 	v.SetFs(c.fs)
 
-	v.AddConfigPath(path)
+	v.SetConfigType("yaml")
+
+	v.SetConfigFile(path)
 
 	c.setViperDefaults(v)
 
