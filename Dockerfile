@@ -14,8 +14,8 @@ ENV SUPERVISOR_VERSION=3.3.1
 RUN apt-get update && apt-get install -y --no-install-recommends python python-pip python-setuptools
 RUN pip install supervisor==$SUPERVISOR_VERSION
 
-COPY --from=builder /target/pilot /usr/local/bin/autopilot
-RUN chmod +x /usr/local/bin/autopilot
+COPY --from=builder /target/pilot /usr/local/bin/redis-autopilot
+RUN chmod +x /usr/local/bin/redis-autopilot
 COPY supervisord.conf /etc/supervisord.conf
 COPY default_config.yml /etc/redis-autopilot/config
 
