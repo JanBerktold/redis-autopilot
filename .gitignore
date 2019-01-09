@@ -2,3 +2,4 @@
 **/*.rs.bk
 .idea
 src/redis-autopilot
+src/redis_enum.go

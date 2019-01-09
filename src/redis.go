@@ -1,3 +1,4 @@
+//go:generate go-enum -f=$GOFILE
 package main
 
 import (
@@ -10,7 +11,20 @@ import (
 	"github.com/go-redis/redis"
 )
 
+// RedisStatus is an enumeration of all possible states the health of a redis instance can have.
+/*
+ENUM(
+Ready
+Loading
+Syncing
+NotResponding
+Unknown
+)
+*/
+type RedisStatus int
+
 type RedisInstance interface {
+	Status() RedisStatus
 	MakeSlave(masterAddr net.TCPAddr) error
 	MakeMaster() error
 }
@@ -30,6 +44,35 @@ func NewRedisInstance(addr string) RedisInstance {
 	return &redisInstance{
 		client: client,
 	}
+}
+
+func (r *redisInstance) Status() RedisStatus {
+	if r.client.Ping().Err != nil {
+		return RedisStatusNotResponding
+	}
+
+	// Check to get instance info
+	rawInfo, err := r.client.Info().Result()
+
+	if err != nil {
+		return RedisStatusUnknown
+	}
+
+	info := parseRedisInfo(rawInfo)
+
+	// Check for ongoing loading from existing rdb or aof backup.
+	if loading, ok := info["loading"]; ok && loading == "1" {
+		return RedisStatusLoading
+	} else if !ok {
+		return RedisStatusUnknown
+	}
+
+	// Check for ongoing SYNC from a master.
+	if _, ok := info["master_sync_left_bytes"]; ok {
+		return RedisStatusSyncing
+	}
+
+	return RedisStatusReady
 }
 
 func (r *redisInstance) MakeSlave(masterAddr net.TCPAddr) error {
@@ -58,4 +101,7 @@ func parseRedisInfo(in string) map[string]string {
 		out[parts[0]] = parts[1]
 	}
 	return out
+}
+
+type RedisWatcher interface {
 }

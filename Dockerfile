@@ -3,6 +3,9 @@ WORKDIR /target
 
 COPY src/ ./
 
+RUN go get github.com/abice/go-enum \
+    && go generate
+
 RUN CGO_ENABLED=0 && GOOS=linux && GOARCH=amd64 && GO111MODULE=on && go build -o pilot
 
 FROM redis:5.0.3-stretch

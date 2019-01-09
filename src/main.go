@@ -3,6 +3,7 @@ package main // import "github.com/janberktold/redis-autopilot"
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -24,9 +25,29 @@ func main() {
 
 	fmt.Printf("%+v \n", *config)
 
+	redisHealthCheckChannel := redisInstanceHealthCheckLoop()
+	interruptChannel := make(chan os.Signal, 1)
+	signal.Notify(interruptChannel, os.Interrupt)
+
 	for {
 		fmt.Println("Hello")
 		<-time.After(5 * time.Second)
+
+		select {
+		case redisStatus := <-redisHealthCheckChannel:
+			fmt.Printf("redis status %v\n", redisStatus)
+		case signal := <-interruptChannel:
+			fmt.Printf("We were asked to shutdown %v\n", signal)
+			break
+		}
 	}
 }
 
+func redisInstanceHealthCheckLoop() <-chan bool {
+
+	go func() {
+
+	}()
+
+	return make(chan bool)
+}
