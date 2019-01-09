@@ -25,13 +25,15 @@ func main() {
 
 	fmt.Printf("%+v \n", *config)
 
-	redisHealthCheckChannel := redisInstanceHealthCheckLoop()
+	redisInstance := NewRedisInstance(config.RedisUrl)
+	watcher, _ := NewRedisWatcher(redisInstance)
+
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, os.Interrupt)
 
 	for {
 		select {
-		case redisStatus := <-redisHealthCheckChannel:
+		case redisStatus := <-watcher.ChangeChannel():
 			fmt.Printf("redis status %v\n", redisStatus)
 		case <-time.After(5 * time.Second):
 			fmt.Println("Hello")
@@ -40,8 +42,4 @@ func main() {
 			break
 		}
 	}
-}
-
-func redisInstanceHealthCheckLoop() <-chan bool {
-	return make(chan bool)
 }

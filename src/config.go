@@ -9,6 +9,7 @@ import (
 
 type RuntimeConfiguration struct {
 	ConsulUrl string
+	RedisUrl string
 }
 
 type ConfigurationManager interface {
@@ -52,4 +53,5 @@ func (c *configurationManager) Load(path string) (config *RuntimeConfiguration, 
 
 func (c *configurationManager) setViperDefaults(v *viper.Viper) {
 	v.SetDefault("ConsulUrl", "127.0.0.1")
+	v.SetDefault("RedisUrl", "127.0.0.1:6379")
 }

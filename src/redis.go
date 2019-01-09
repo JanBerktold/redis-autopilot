@@ -107,3 +107,26 @@ type RedisWatcher interface {
 	Status() RedisStatus
 	ChangeChannel() <-chan RedisStatus
 }
+
+type redisWatcher struct {
+	redisInstance RedisInstance
+	lastStatus RedisStatus
+}
+
+func NewRedisWatcher(instance RedisInstance) (RedisWatcher, error) {
+
+	watcher := &redisWatcher{
+		redisInstance:instance,
+		lastStatus:RedisStatusNotResponding,
+	}
+
+	return watcher, nil
+}
+
+func (r *redisWatcher) Status() RedisStatus {
+	return r.lastStatus
+}
+
+func (r *redisWatcher) ChangeChannel() <-chan RedisStatus {
+	return make(chan RedisStatus)
+}
