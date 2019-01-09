@@ -33,6 +33,7 @@ RUN apt-get update \
 COPY --from=builder /target/pilot /usr/local/bin/redis-autopilot
 RUN chmod +x /usr/local/bin/redis-autopilot
 COPY supervisord.conf /etc/supervisord.conf
+COPY redis.conf /etc/redis.conf
 COPY default_config.yml /etc/redis-autopilot/config
 
 ENTRYPOINT ["supervisord"]
