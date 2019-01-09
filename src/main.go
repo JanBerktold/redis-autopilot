@@ -30,12 +30,11 @@ func main() {
 	signal.Notify(interruptChannel, os.Interrupt)
 
 	for {
-		fmt.Println("Hello")
-		<-time.After(5 * time.Second)
-
 		select {
 		case redisStatus := <-redisHealthCheckChannel:
 			fmt.Printf("redis status %v\n", redisStatus)
+		case <-time.After(5 * time.Second):
+			fmt.Println("Hello")
 		case signal := <-interruptChannel:
 			fmt.Printf("We were asked to shutdown %v\n", signal)
 			break
@@ -44,10 +43,5 @@ func main() {
 }
 
 func redisInstanceHealthCheckLoop() <-chan bool {
-
-	go func() {
-
-	}()
-
 	return make(chan bool)
 }

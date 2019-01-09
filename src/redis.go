@@ -104,4 +104,6 @@ func parseRedisInfo(in string) map[string]string {
 }
 
 type RedisWatcher interface {
+	Status() RedisStatus
+	ChangeChannel() <-chan RedisStatus
 }
