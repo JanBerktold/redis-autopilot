@@ -36,4 +36,4 @@ COPY supervisord.conf /etc/supervisord.conf
 COPY redis.conf /etc/redis.conf
 COPY default_config.yml /etc/redis-autopilot/config
 
-ENTRYPOINT ["supervisord"]
+ENTRYPOINT ["supervisord", "-c", "/etc/supervisord.conf"]
