@@ -109,16 +109,17 @@ type RedisWatcher interface {
 }
 
 type redisWatcher struct {
-	redisInstance RedisInstance
+	redisInstanceProvider RedisInstanceProvider
 	lastStatus RedisStatus
 }
 
-func NewRedisWatcher(instance RedisInstance) (RedisWatcher, error) {
-
+func NewRedisWatcher(instanceProvider RedisInstanceProvider) (RedisWatcher, error) {
 	watcher := &redisWatcher{
-		redisInstance:instance,
+		redisInstanceProvider:instanceProvider,
 		lastStatus:RedisStatusNotResponding,
 	}
+
+	go watcher.monitor()
 
 	return watcher, nil
 }
@@ -129,4 +130,60 @@ func (r *redisWatcher) Status() RedisStatus {
 
 func (r *redisWatcher) ChangeChannel() <-chan RedisStatus {
 	return make(chan RedisStatus)
+}
+
+func (r *redisWatcher) monitor() {
+
+}
+
+type RedisInstanceProvider interface {
+	Instance() RedisInstance
+	ChangeSignal() <-chan RedisInstance
+}
+
+type redisInstanceProvider struct {
+	currentInstance RedisInstance
+	changeSignal <-chan struct{}
+	redisAddrGetter func() string
+	listeners []chan RedisInstance
+}
+
+func NewRedisInstanceProvider(redisAddrGetter func() string, changeSignal <-chan struct{}) RedisInstanceProvider {
+	instance := NewRedisInstance(redisAddrGetter())
+
+	provider := &redisInstanceProvider{
+		currentInstance:instance,
+		changeSignal:changeSignal,
+		redisAddrGetter:redisAddrGetter,
+		listeners:make([]chan RedisInstance, 0),
+	}
+
+	go provider.monitor()
+
+	return provider
+}
+
+func (p *redisInstanceProvider) Instance() RedisInstance {
+	return p.currentInstance
+}
+
+func (p *redisInstanceProvider) ChangeSignal() <-chan RedisInstance {
+	signal := make(chan RedisInstance)
+	p.listeners = append(p.listeners, signal)
+	return signal
+}
+
+func (p *redisInstanceProvider) monitor() {
+	for {
+		<-p.changeSignal
+		instance := NewRedisInstance(p.redisAddrGetter())
+		p.currentInstance = instance
+
+		for _, listener := range p.listeners {
+			select {
+				case listener <- instance:
+				default:
+			}
+		}
+	}
 }
