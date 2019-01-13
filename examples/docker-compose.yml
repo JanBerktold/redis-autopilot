@@ -1,0 +1,24 @@
+version: '2.0'
+
+services:
+  redis:
+    build: ../
+    network_mode: bridge
+    links:
+    - consul:consul
+    expose:
+    - 6379
+
+  consul:
+    image: consul:latest
+    network_mode: bridge
+    restart: always
+    expose:
+    - 8300
+    - 8301
+    - 8302
+    - 8400
+    - 8500
+    environment:
+    - LOG_LEVEL=info
+    command: /bin/sh -c "consul agent -server -bootstrap-expect=1 -data-dir=/consul/data$$(date +%s) -node=consul -client 0.0.0.0 -bind 0.0.0.0 -config-dir=/consul/config -dev -ui"

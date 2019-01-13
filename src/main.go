@@ -44,14 +44,33 @@ func main() {
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, os.Interrupt)
 
-	pilot := NewMasterWithSlavesPilot(redisInstanceProvider, nil)
+	consulClientProvider, err := NewConsulClientProvider(func() string {
+		return config.ConsulURL
+	}, func() string {
+		return config.ConsulACL
+	}, changeSignal, logger)
+	if err != nil {
+		logger.Panicf("Failed to create ConsulClientProvider: %v.", err.Error())
+	}
+
+	consulServiceRegistrar, err := NewConsulServiceRegistrar(consulClientProvider, func() string {
+		return config.ConsulServiceName
+	}, func() time.Duration {
+		return config.ConsulServiceRegistrationTTL
+	}, changeSignal)
+	if err != nil {
+		logger.Panicf("Failed to create ConsulServiceRegistrar: %v.", err.Error())
+	}
+
+	// TODO: Should load pilot based off config file.
+	pilot := NewSingleMasterWithSlavesPilot(redisInstanceProvider, consulServiceRegistrar)
 
 	for {
 		select {
 		case redisStatus := <-watcher.ChangeChannel():
 			log.Infof("Interrupt from redis watcher, new status: %v", redisStatus)
 			pilot.Execute()
-		case <-time.After(4 * time.Second):
+		case <-time.After(config.PilotExecuteTimeInterval):
 			log.Info("Interrupt from time delay")
 			pilot.Execute()
 		case signal := <-interruptChannel:

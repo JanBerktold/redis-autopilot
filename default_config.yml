@@ -1,3 +1,3 @@
-ConsulUrl: 127.0.0.1:8080
+ConsulUrl: http://127.0.0.1:8500
 RedisMonitorInterval: 2s
 PilotExecuteTimeInterval: 5s

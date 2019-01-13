@@ -5,20 +5,20 @@ type Pilot interface {
 	Shutdown()
 }
 
-type masterWithSlavesPilot struct {
+type singleMasterWithSlavesPilot struct {
 	redisInstanceProvider  RedisInstanceProvider
 	consulServiceRegistrar ConsulServiceRegistrar
 }
 
-func NewMasterWithSlavesPilot(redisInstanceProvider RedisInstanceProvider, consulServiceRegistrar ConsulServiceRegistrar) Pilot {
-	return &masterWithSlavesPilot{
+func NewSingleMasterWithSlavesPilot(redisInstanceProvider RedisInstanceProvider, consulServiceRegistrar ConsulServiceRegistrar) Pilot {
+	return &singleMasterWithSlavesPilot{
 		redisInstanceProvider:  redisInstanceProvider,
 		consulServiceRegistrar: consulServiceRegistrar,
 	}
 }
 
-func (pilot *masterWithSlavesPilot) Execute() error {
-	instance := pilot.redisInstanceProvider.Instance()
+func (p *singleMasterWithSlavesPilot) Execute() error {
+	instance := p.redisInstanceProvider.Instance()
 
 	redisStatus := instance.Status()
 	if redisStatus != RedisStatusReady {
@@ -28,6 +28,6 @@ func (pilot *masterWithSlavesPilot) Execute() error {
 	return nil
 }
 
-func (p *masterWithSlavesPilot) Shutdown() {
+func (p *singleMasterWithSlavesPilot) Shutdown() {
 
 }
