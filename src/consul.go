@@ -1,10 +1,17 @@
 package main
 
 import (
-	//consul "github.com/hashicorp/consul/api"
+	consul "github.com/hashicorp/consul/api"
 )
 
-type Consul interface {
+type ConsulClient interface {
+}
+
+type consulClient struct {
+	client *consul.Client
+}
+
+type ConsulClientProvider interface {
 }
 
 type ConsulServiceRegistrar interface {
@@ -17,8 +24,8 @@ type consulServiceRegistrar struct {
 	enabled bool
 }
 
-func NewConsulServiceRegistrar() ConsulServiceRegistrar {
-	return &consulServiceRegistrar{}
+func NewConsulServiceRegistrar() (ConsulServiceRegistrar, error) {
+	return &consulServiceRegistrar{}, nil
 }
 
 func (r *consulServiceRegistrar) Enable() error {

@@ -15,33 +15,40 @@ func main() {
 		os.Exit(1)
 	}
 
+	logger := log.StandardLogger()
+
 	configurationFilePath := os.Args[1]
 
 	configManager := NewConfigurationManager()
 	config, changeSignal, err := configManager.Load(configurationFilePath)
 	if err != nil {
-		log.Panicf("Failed to load runtime configuration file: %v", err)
+		logger.Panicf("Failed to load runtime configuration file: %v", err)
 	}
 
 	fmt.Printf("%+v \n", *config)
 
-	redisInstanceProvider := NewRedisInstanceProvider(func() string {
+	redisInstanceProvider, err := NewRedisInstanceProvider(func() string {
 		return config.RedisUrl
-	}, changeSignal)
+	}, changeSignal, logger)
+	if err != nil {
+		logger.Panicf("Failed to create RedisInstanceProvider: %v\n.", err.Error())
+	}
 
-	watcher, _ := NewRedisWatcher(redisInstanceProvider)
+	watcher, _ := NewRedisWatcher(redisInstanceProvider, logger, func() time.Duration {
+		return config.RedisMonitorInterval
+	})
 
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, os.Interrupt)
 
-	pilot := &masterWithSlavesPilot{}
+	pilot := NewMasterWithSlavesPilot(redisInstanceProvider, nil)
 
 	for {
 		select {
 		case redisStatus := <-watcher.ChangeChannel():
 			fmt.Printf("redis status %v\n", redisStatus)
 			pilot.Execute()
-		case <-time.After(5 * time.Second):
+		case <-time.After(4 * time.Second):
 			fmt.Println("Hello")
 			pilot.Execute()
 		case signal := <-interruptChannel:
@@ -49,24 +56,6 @@ func main() {
 			break
 		}
 	}
-}
 
-type Pilot interface {
-	Execute() error
-	Shutdown()
-}
-
-type masterWithSlavesPilot struct {
-	redisInstanceGetter func() RedisInstance
-}
-
-func (pilot *masterWithSlavesPilot) Execute() error {
-	instance := pilot.redisInstanceGetter()
-
-	redisStatus := instance.Status()
-	if redisStatus != RedisStatusReady {
-		// make sure we're not in consul
-	}
-
-	return nil
+	pilot.Shutdown()
 }

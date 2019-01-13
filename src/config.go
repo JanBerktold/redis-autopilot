@@ -1,15 +1,17 @@
 package main
 
 import (
-	"github.com/pkg/errors"
 	"github.com/fsnotify/fsnotify"
+	"github.com/pkg/errors"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
+	"time"
 )
 
 type RuntimeConfiguration struct {
-	ConsulUrl string
-	RedisUrl string
+	ConsulUrl            string
+	RedisUrl             string
+	RedisMonitorInterval time.Duration
 }
 
 type ConfigurationManager interface {
@@ -35,6 +37,10 @@ func (c *configurationManager) Load(path string) (config *RuntimeConfiguration, 
 	v.SetConfigFile(path)
 
 	c.setViperDefaults(v)
+
+	if err := v.ReadInConfig(); err != nil {
+		return nil, nil, errors.Wrap(err, "read configuration")
+	}
 
 	config = &RuntimeConfiguration{}
 	if err := v.Unmarshal(config); err != nil {
