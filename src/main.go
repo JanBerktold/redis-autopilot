@@ -28,15 +28,18 @@ func main() {
 	fmt.Printf("%+v \n", *config)
 
 	redisInstanceProvider, err := NewRedisInstanceProvider(func() string {
-		return config.RedisUrl
+		return config.RedisAddress
 	}, changeSignal, logger)
 	if err != nil {
-		logger.Panicf("Failed to create RedisInstanceProvider: %v\n.", err.Error())
+		logger.Panicf("Failed to create RedisInstanceProvider: %v.", err.Error())
 	}
 
-	watcher, _ := NewRedisWatcher(redisInstanceProvider, logger, func() time.Duration {
+	watcher, err := NewRedisWatcher(redisInstanceProvider, logger, func() time.Duration {
 		return config.RedisMonitorInterval
 	})
+	if err != nil {
+		logger.Panicf("Failed to create RedisInstanceProvider: %v.", err.Error())
+	}
 
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, os.Interrupt)
@@ -46,13 +49,13 @@ func main() {
 	for {
 		select {
 		case redisStatus := <-watcher.ChangeChannel():
-			fmt.Printf("redis status %v\n", redisStatus)
+			log.Infof("Interrupt from redis watcher, new status: %v", redisStatus)
 			pilot.Execute()
 		case <-time.After(4 * time.Second):
-			fmt.Println("Hello")
+			log.Info("Interrupt from time delay")
 			pilot.Execute()
 		case signal := <-interruptChannel:
-			fmt.Printf("We were asked to shutdown %v\n", signal)
+			log.Infof("We were asked to shutdown %v", signal)
 			break
 		}
 	}

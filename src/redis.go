@@ -2,7 +2,6 @@
 package main
 
 import (
-	"errors"
 	"net"
 	"strconv"
 	"strings"
@@ -10,21 +9,26 @@ import (
 	"unicode"
 
 	"github.com/go-redis/redis"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
 // RedisStatus is an enumeration of all possible states the health of a redis instance can have.
 /*
 ENUM(
+Unknown
 Ready
 Loading
 Syncing
 NotResponding
-Unknown
+Faulty
 )
 */
 type RedisStatus int
 
+// A RedisInstance represents a command interface to a single
+// redis instance. Allows us to execute commands against redis
+// while providing a higher-level interface than a pure redis client.
 type RedisInstance interface {
 	Status() RedisStatus
 	MakeSlave(masterAddr net.TCPAddr) error
@@ -36,7 +40,11 @@ type redisInstance struct {
 	logger *log.Logger
 }
 
-func NewRedisInstance(addr string, logger *log.Logger) RedisInstance {
+func NewRedisInstance(addr string, logger *log.Logger) (RedisInstance, error) {
+	if logger == nil {
+		return nil, errors.New("logger is nil")
+	}
+
 	client := redis.NewClient(&redis.Options{
 		Addr:         addr,
 		DialTimeout:  1 * time.Second,
@@ -47,20 +55,20 @@ func NewRedisInstance(addr string, logger *log.Logger) RedisInstance {
 	return &redisInstance{
 		client: client,
 		logger: logger,
-	}
+	}, nil
 }
 
 func (r *redisInstance) Status() RedisStatus {
 	if err := r.client.Ping().Err(); err != nil {
-		r.logger.Infof("failed to ping redis instance: %v\n", err)
+		r.logger.Infof("failed to ping redis instance: %v", err)
 		return RedisStatusNotResponding
 	}
 
 	// Check to get instance info
 	rawInfo, err := r.client.Info().Result()
 	if err != nil {
-		r.logger.Infof("failed to retrieve INFO from redis instance: %v\n", err.Error())
-		return RedisStatusUnknown
+		r.logger.Infof("failed to retrieve INFO from redis instance: %v", err.Error())
+		return RedisStatusFaulty
 	}
 
 	info := parseRedisInfo(rawInfo)
@@ -69,8 +77,8 @@ func (r *redisInstance) Status() RedisStatus {
 	if loading, ok := info["loading"]; ok && loading == "1" {
 		return RedisStatusLoading
 	} else if !ok {
-		r.logger.Infof("INFO result did not include loading key\n")
-		return RedisStatusUnknown
+		r.logger.Infof("INFO result did not include loading key")
+		return RedisStatusFaulty
 	}
 
 	// Check for ongoing SYNC from a master.
@@ -123,9 +131,20 @@ type redisWatcher struct {
 }
 
 func NewRedisWatcher(instanceProvider RedisInstanceProvider, logger *log.Logger, monitorIntervalGetter func() time.Duration) (RedisWatcher, error) {
+	if instanceProvider == nil {
+		return nil, errors.New("instanceProvider is nil")
+	}
+	if logger == nil {
+		return nil, errors.New("logger is nil")
+	}
+	if monitorIntervalGetter == nil {
+		return nil, errors.New("monitorIntervalGetter is nil")
+	}
+
 	watcher := &redisWatcher{
 		redisInstanceProvider: instanceProvider,
 		monitorIntervalGetter: monitorIntervalGetter,
+		lastStatus:            RedisStatusUnknown,
 		listeners:             make([]chan RedisStatus, 0),
 		logger:                logger,
 	}
@@ -141,7 +160,9 @@ func (r *redisWatcher) Status() RedisStatus {
 }
 
 func (r *redisWatcher) ChangeChannel() <-chan RedisStatus {
-	return make(chan RedisStatus)
+	changeChannel := make(chan RedisStatus)
+	r.listeners = append(r.listeners, changeChannel)
+	return changeChannel
 }
 
 func (r *redisWatcher) monitor() {
@@ -155,9 +176,11 @@ func (r *redisWatcher) update() {
 	status := r.redisInstanceProvider.Instance().Status()
 
 	if r.lastStatus == status {
-		r.logger.Info("Performed redis health check with no change. Status: %v", status.String())
+		r.logger.Infof("Performed redis health check with no change. Status: %v.", status.String())
 		return
 	}
+
+	r.logger.Infof("Updated redis instance status from %v to %v.", r.lastStatus, status)
 
 	r.lastStatus = status
 
@@ -193,7 +216,10 @@ func NewRedisInstanceProvider(redisAddrGetter func() string, changeSignal <-chan
 		return nil, errors.New("logger is nil")
 	}
 
-	instance := NewRedisInstance(redisAddrGetter(), logger)
+	instance, err := NewRedisInstance(redisAddrGetter(), logger)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create RedisInstance")
+	}
 
 	provider := &redisInstanceProvider{
 		currentInstance: instance,
@@ -223,10 +249,15 @@ func (p *redisInstanceProvider) monitor() {
 		<-p.changeSignal
 
 		redisAddr := p.redisAddrGetter()
-		instance := NewRedisInstance(redisAddr, p.logger)
+		instance, err := NewRedisInstance(redisAddr, p.logger)
+		if err != nil {
+			p.logger.Errorf("Failed to create RedisInstance: %v", err)
+			continue
+		}
+
 		p.currentInstance = instance
 
-		p.logger.Infof("Refreshed redis instance with %v\n.", redisAddr)
+		p.logger.Infof("Refreshed redis instance with %v.", redisAddr)
 
 		for _, listener := range p.listeners {
 			select {
