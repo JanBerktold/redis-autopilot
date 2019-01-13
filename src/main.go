@@ -65,6 +65,7 @@ func main() {
 	// TODO: Should load pilot based off config file.
 	pilot := NewSingleMasterWithSlavesPilot(redisInstanceProvider, consulServiceRegistrar)
 
+	loop:
 	for {
 		select {
 		case redisStatus := <-watcher.ChangeChannel():
@@ -75,7 +76,7 @@ func main() {
 			pilot.Execute()
 		case signal := <-interruptChannel:
 			log.Infof("We were asked to shutdown %v", signal)
-			break
+			break loop
 		}
 	}
 
