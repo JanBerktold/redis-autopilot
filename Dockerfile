@@ -28,6 +28,8 @@ ENV SUPERVISOR_VERSION=3.3.1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python python-pip python-setuptools \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
     && pip install supervisor==$SUPERVISOR_VERSION
 
 COPY --from=builder /target/pilot /usr/local/bin/redis-autopilot
